@@ -7,6 +7,15 @@ cfg=yaml.safe_load("""colors:
 
 import logging
 import subprocess
+#color print
+from IPython.display import Markdown
+
+from IPython.display import HTML
+
+def cstr(s, color='black'):
+    return "<text style=color:{}>{}</text>".format(color, s)
+
+import subprocess
 
 
 def shell(cmd): 
@@ -16,28 +25,21 @@ def shell(cmd):
     out = out.split('\n')
   return out
   
-
-#color print
-from IPython.display import Markdown
-
-from IPython.display import HTML
-
-def cstr(s, color='black'):
-    return "<text style=color:{}>{}</text>".format(color, s)
-
-
 def setup_env(packages,modules):
-    
   import re,os
   if os.name!='nt':
       modlist=shell('pip list')
-      modlist={x.split()[0]:x.split()[1] for x in modlist[2:]}
+      print(modules)
+      # display({tuple(x.split()):'x' 
+      #        for x in modlist[2:]})
+      modlist={x.split()[0]:x.split()[1]
+                 for x in modlist[2:] if x}
       for m in modules:
         if m in modlist:
-          display(f"module {m} : {modlist[m]} already installed")
+          display(f"Module {m} : {modlist[m]} already installed")
         else:
-          display(f"fmodule {m} : {modlist[m]} not installed")
-          shell('pip install {m} ')
+          display(f"Installing module {m} ")
+          shell(f'pip install {m} ')
       # if True:
         # !apt-get update # to update ubuntu to correctly run apt install
       pkgList=shell('apt list --installed')
@@ -46,11 +48,11 @@ def setup_env(packages,modules):
         if pkg in pkgList:
           display(f"package {pkg} already installed")
         else:
-          display(f"package {pkg} not installed")
-          shell('apt install {pkg} ')
+          display(f"Installing package {pkg}")
+          shell(f'apt install {pkg} ')
 
   return "Environment setup"
-  # if os.name!='nt' and False:
+# if os.name!='nt' and False:
   #     !pip install nerodia
   #     !pip install pygsheets
   #     if True:
