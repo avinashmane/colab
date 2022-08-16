@@ -9,7 +9,13 @@ import logging
 import subprocess
 
 
-shell=lambda cmd: subprocess.check_output(cmd, shell=True, text=True)
+def shell(cmd): 
+  out = subprocess.check_output(cmd, shell=True, text=True)
+  "Required since NT splits lines and posix doesnt"
+  if isinstance(out,str): 
+    out = out.split('\n')
+  return out
+  
 
 #color print
 from IPython.display import Markdown
@@ -21,9 +27,10 @@ def cstr(s, color='black'):
 
 
 def setup_env(packages,modules):
+    
   import re,os
   if os.name!='nt':
-      modlist=shell('pip list')
+      modlist=splitlines(shell('pip list'))
       modlist={x.split()[0]:x.split()[1] for x in modlist[2:]}
       for m in modules:
         if m in modlist:
