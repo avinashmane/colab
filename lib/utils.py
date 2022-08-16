@@ -30,7 +30,7 @@ def setup_env(packages,modules):
     
   import re,os
   if os.name!='nt':
-      modlist=splitlines(shell('pip list'))
+      modlist=shell('pip list')
       modlist={x.split()[0]:x.split()[1] for x in modlist[2:]}
       for m in modules:
         if m in modlist:
