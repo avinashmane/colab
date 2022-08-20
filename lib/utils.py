@@ -8,9 +8,15 @@ cfg=yaml.safe_load("""colors:
 import logging
 import subprocess
 #color print
-from IPython.display import Markdown
+from IPython.display import Markdown, HTML
 
-from IPython.display import HTML
+""" Utilities
+
+>>> '2'+'3'
+'23'
+>>>cstr("test")
+''<text style=color:black>test</text>'
+"""
 
 def cstr(s, color='black'):
     return "<text style=color:{}>{}</text>".format(color, s)
@@ -19,6 +25,7 @@ import subprocess
 
 
 def shell(cmd): 
+  """"""
   out = subprocess.check_output(cmd, shell=True, text=True)
   "Required since NT splits lines and posix doesnt"
   if isinstance(out,str): 
@@ -26,6 +33,11 @@ def shell(cmd):
   return out
   
 def setup_env(packages,modules):
+  """Sets up APT packages and Python modules
+  
+  >>> setup_env([],['pandas'])
+  'Environment setup'
+  """
   import re,os
   if os.name!='nt':
       modlist=shell('pip list')
@@ -177,11 +189,19 @@ def dumpTag(tag,attr=['tag_name','class_name','innertext','title','data_testid']
     return         
 
 def getAttrsIfExists(el,attr=['text'],defaults=[]):
+    """Get attributes id tag exists
+    - el : tag
+    - attr : str, list of attributes
+    - detaults : default for each attributes, '' (blank if not provided)
+    """
+    if isinstance(attr,str):
+        attr=[attr]
+      
     try:
         el.wait_until(timeout=.1,method=lambda x:x.exists)
     except Exception as e:
         # print(f'Error getAttrsIfExists() {e!r}')
-        arr=['' for x in attr]      # return all Xs
+        arr=[None for x in attr]      # return all Xs
     else:
         arr=[]
         for i,a in enumerate(attr):

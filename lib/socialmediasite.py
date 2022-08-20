@@ -184,20 +184,23 @@ class Strava(SocialMediaSite):
 
         self.browser.button(text='Delete').click()
         self.browser.alert.ok()
+    def getPostData(self,actEl):
+        ath,athUrl=utils.getAttrsIfExists( actEl.link(data_testid="owners-name"),
+                               ['text','href'])#,)
+        loc=utils.getAttrsIfExists( actEl.div(data_testid="location"))
+        act,actUrl=utils.getAttrsIfExists( actEl.link(data_testid="activity_name"),
+                               ['text','href'])#,)
+        kudoCount=utils.getAttrsIfExists( actEl.button(data_testid="kudos_count"))
+        return ath,athUrl,loc,act,actUrl,kudoCount
+
     def giveKudo(self,kudoTag,i=''):
         try:
             self.browser.execute_script("arguments[0].click();", kudoTag)
             
             actEl=kudoTag.parent(class_name=re.compile('^EntryFooter')
                                ).parent()
-            # print(">",actEl.exists,actEl.tag_name,actEl.class_name,actEl.text[:9],)
             try:
-                ath,athUrl=utils.getAttrsIfExists( actEl.link(data_testid="owners-name"),
-                                       ['text','href'])#,)
-                loc=utils.getAttrsIfExists( actEl.div(data_testid="location"))
-                act,actUrl=utils.getAttrsIfExists( actEl.link(data_testid="activity_name"),
-                                       ['text','href'])#,)
-                kudoCount=utils.getAttrsIfExists( actEl.button(data_testid="kudos_count"))
+                ath,athUrl,loc,act,actUrl,kudoCount=self.getPostData(actEl)
                 # print(ath,athUrl,act,actUrl,kudoCount,loc)
                 try:
                   athId = int(re.findall(".*\/([0-9]*)",athUrl)[0])
@@ -212,22 +215,22 @@ class Strava(SocialMediaSite):
         else:
             if not self.logGSheet is None:
               self.logGSheet.append_table([[pd.Timestamp.now().isoformat(),"INFO","giveKudos",athId,athUrl,ath,actUrl,loc,]]) 
-            logging.info(f"giveKudos: {i},{athId},{athUrl} {actUrl} {act}")
+            logging.info(f"giveKudos: {i},{athId},{athUrl},{ath},{actUrl},{act}")
 
-    def giveKudos(self):
+    def giveKudos(self,delay=.25):
       "Give Kudos in current screen new"
       _=self.browser.buttons(title=self.giveKudosPattern)
       for i,x in enumerate(_):
         self.giveKudo(x,i)
-        time.sleep(.5)
+        time.sleep(delay)
       return 
     
-    def postComment(commentButtonEl):
+    def postComment(self,commentButtonEl,text):
       commentButtonEl.execute_script("arguments[0].click();", commentButtonEl)
       try:
           footer=commentButtonEl.parent(class_name='EntryFooter--entry-footer--Gy+uP')
           ta=footer.textarea().wait_until(timeout=.1,method=lambda x:x.exists)
-          ta.value='Nice!'
+          ta.value=text
           postButton=footer.button(data_testid='post-comment-btn').wait_until(timeout=.1,method=lambda x:x.exists)
           postButton.execute_script("arguments[0].click();", postButton)
       except: pass
