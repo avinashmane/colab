@@ -20,15 +20,7 @@ import pandas as pd
 import logging
 import sys
 sys.tracebacklimit = 3
-# if os.environ['AUTH']:
-#   AUTH=os.environ['AUTH']
-# else:
-#   AUTH='/i/auth'
-# if os.environ['LIB']:
-#   LIB=os.environ['LIB']
-# else:
-#   LIB='./lib' 
-import nerodia
+
 # import KEYS
 from selenium.webdriver.common.keys import Keys
 
@@ -215,15 +207,16 @@ class Strava(SocialMediaSite):
         else:
             if not self.logGSheet is None:
               self.logGSheet.append_table([[pd.Timestamp.now().isoformat(),"INFO","giveKudos",athId,athUrl,ath,actUrl,loc,]]) 
-            logging.info(f"giveKudos: {i},{athId},{athUrl},{ath},{actUrl},{act}")
+            logging.info(f"giveKudos: {i},{athId},{athUrl} {ath},{actUrl} {act}")
 
     def giveKudos(self,delay=.25):
       "Give Kudos in current screen new"
       _=self.browser.buttons(title=self.giveKudosPattern)
+      count=len(_)
       for i,x in enumerate(_):
         self.giveKudo(x,i)
         time.sleep(delay)
-      return 
+      return {'count':count}
     
     def postComment(self,commentButtonEl,text):
       commentButtonEl.execute_script("arguments[0].click();", commentButtonEl)
@@ -345,16 +338,106 @@ class Linkedin(SocialMediaSite):
 
       return posts
       
-    def deletePost(self,id):
-        "@id like post-19361836"
-        self.browser.li(id=id).div(class_name='drop-down-menu').click()
-        self.browser.li(id=id).button(text='Delete').click()
-        self.browser.alert.ok()
+class Facebook(SocialMediaSite):
+    authType='facebook'
+    logGSheet=None
+    def __init__(self,b=None,cookieFile=None,authFile=f"{os.environ['AUTH']}/auth.yaml",cfgFile=None):
+        super().__init__(b,authFile=authFile)
+        self.siteType='facebook'
+        
+        if  cfgFile is not None: #=f'{os.environ["LIB"]}/cfg_strava.yaml'
+          with open(cfgFile) as file:
+            cfg = yaml.safe_load(file)
+            self.cfg.update(cfg['facebook'])
 
-    def deleteCurrentPost(self):
-        "delete current post"
-        self.browser.div(id="options-menu").click()
-        self.browser.div(id="options-menu").link(text="Edit").click()
+    def login(self,login):
+        if 'username' in login:
+          auth=login
+        else:
+          auth=self.auth[self.authType][login]
+          
+        self.browser.goto('https://m.facebook.com/login')
 
-        self.browser.button(text='Delete').click()
-        self.browser.alert.ok()
+        # try: # reject cookies ! copy from Strava       
+      
+        try:
+          try:self.browser.text_field(name='session_key').value=auth['username']  #timeout did not work
+          except:pass
+          _pwd=self.browser.text_field(name='session_password')
+          _pwd.value=auth['password']
+          _pwd.send_keys(Keys.ENTER)
+        except Exception as e:
+          if 'dashboard' in self.browser.url:
+            logging.info( f"Logged in with {auth['username']}") #logging.warning 
+          else:
+            logging.warning( f"Error Login2 {e!r}") #logging.warning 
+    
+    def logout(self):
+      try:
+        self.browser.goto('https://www.linkedin.com/feed')
+        menu=self.browser.element(class_name='global-nav__me'
+                                 ).wait_until(timeout=2,method=ifExists)
+        menu.click()
+        self.browser.execute_script("arguments[0].click();", menu)
+        if 'artdeco-dropdown--is-open' in menu.class_name:
+            self.browser.element(text='Sign Out').click()
+            self.browser.element(text='Sign Out').click()
+            logging.info( f"Logged out")
+        else:
+            logging.info( f"Error: Log out menu did not open")
+      except TimeoutError:
+            logging.info( f"Error: Perhap not signed in")
+
+    def getPostData(self,postTag):
+      "Return data regarding one post in linkedin feed"
+      post={}
+      if not postTag.exists:
+        return
+      _map={
+          'post':'postTag.parent().element(class_name="visually-hidden").text',
+          'urn':'postTag.attributes["data_urn"]',
+          'name':'postTag.element(class_name="feed-shared-actor__name").text',
+          'userUrl':'postTag.link(class_name="feed-shared-actor__container-link").href.split("?")[0]',
+          'likes':'postTag.element(class_name="social-details-social-counts__reactions-count").text',
+            # len('.div(class_name='feed-shared-social-actions').buttons(text='Like'))',
+              # 'react-button--active' in 'react-button__text--like' in 
+          'liked':'"react-button--active" in postTag.div(class_name="feed-shared-social-actions").button(text="Like").class_name',
+          # print(name','.element(class_name='feed-shared-social-actions'
+          #                                                            ).button(text='Like').class_name)
+          'text':'postTag.element(class_name="feed-shared-update-v2__commentary").text',
+          'desc':'postTag.element(class_name="feed-shared-actor__description").text',
+          'subdesc':'postTag.element(class_name="feed-shared-actor__sub-description").text',
+          # if post['subdesc'] not in ['Promoted']:
+          'deg':'postTag.span(class_name="feed-shared-actor__supplementary-actor-info").text',
+      }
+      for key,evl in _map.items():
+        try:
+            print (evl.split(').')[0]+').exists')
+            # post[key]=eval(evl,{"postTag":postTag})
+        except (nerodia.exception.UnknownObjectException,Exception) as e:
+            pass
+            print(f"Error {e!r} {key} {evl}")
+      return post    
+
+        
+    def getPostIds(self):
+      "Get list of all feed posts"
+      nerodia.default_timeout=.1
+      posts=[]
+
+      for x in self.browser.elements(class_name='feed-shared-update-v2',
+                          ):#data_id=re.compile("urn:li:activity:")):
+          if re.match(r"^urn:li:activity:",x.data_urn):
+            print (x.exists)
+            try:
+                post=self.getPostData(x)
+                post.update({'el':x})
+                posts.append( post)
+            except Exception as e:
+                # Logs the error appropriately. 
+                print(f">>{e!r}")
+          else:
+            print(">",x.data_urn)
+
+      return posts
+      
