@@ -4,21 +4,19 @@ cfg=yaml.safe_load("""colors:
   tag_name: green
   text: brown
 """)
-
+import os
 import logging
 import subprocess
 #color print
 from IPython.display import Markdown, HTML
 
-""" Utilities
-
->>> '2'+'3'
-'23'
->>>cstr("test")
-''<text style=color:black>test</text>'
-"""
 
 def cstr(s, color='black'):
+    """ Print with color
+    
+    >>>cstr("test")
+    '<text style=color:black>test</text>'
+    """
     return "<text style=color:{}>{}</text>".format(color, s)
 
 import subprocess
@@ -218,3 +216,51 @@ def getAttrsIfExists(el,attr=['text'],defaults=[]):
       return arr[0]
     else:
       return arr
+    
+def findfile(file,recursive=False,pathlist=os.environ['PATH'].split(";")):
+    """
+    >>> findfile("cmd.exe",pathlist=os.environ['PATH'].split(';'))
+    ['C:\\\\WINDOWS\\\\system32/cmd.exe']
+    >>> findfile("config.yaml")
+    ['config.yaml']
+    >>> findfile("utils.py")
+    ['utils.py']
+    """
+    def log(*kws): pass#print(*kws)
+    filelist=[]
+    "Find file in current directory + subdirectories + path"
+    for root, dirs, files in os.walk(".",topdown=False):  
+    # print(f"searching in  {path1}")
+        if file in files:
+            filelist.append(file)
+            log(f"{file} exists {root}")
+    else:
+        log(f"not in {root}")
+
+    for path1 in pathlist:
+        # topdown=True, onerror=None, followlinks=False
+        _file="/".join([path1.strip("/"),file])
+        if os.path.isfile(_file) and path1:
+            log(f"{file} exists in {path1}")
+            filelist.append(_file)
+        else:
+            log(f"not in {path1}")
+    return filelist
+  
+  
+def insp(obj):
+    arr=[]
+    def pp(a,s,v): 
+        # print(f"{a}\t{s}\t{v}")
+        arr.append([type(getattr(obj,a,)).__name__,a,s,v[:50]])
+    for a in dir(obj):
+        # print(a)
+        try: 
+            _attr = getattr(obj,a,)
+            if callable(_attr):
+                pp(a,':',_attr())
+            else:
+                pp(a,'=',_attr)
+        except Exception as e: pp(a,'-',f"{e!r}")
+    return arr
+        

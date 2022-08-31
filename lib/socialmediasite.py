@@ -7,6 +7,7 @@
 
 import yaml
 import nerodia
+from nerodia.browser import Browser
 from nerodia.wait.wait import TimeoutError, Wait
 from nerodia.exception import Error, NoMatchingWindowFoundException, ObjectDisabledException, \
     ObjectReadOnlyException, UnknownFrameException, UnknownObjectException
@@ -27,20 +28,36 @@ from selenium.webdriver.common.keys import Keys
 ifExists=lambda x:x.exists
 
 class SocialMediaSite:
-    "Generic website"
+    """Generic website 
+    test page link: https://testpages.herokuapp.com/styled/index.html
+    
+    >>> x=SocialMediaSite(b=None,browser='chrome')
+    
+    >>> x.browser.goto("https://testpages.herokuapp.com/styled/index.html")
+
+    >>> x.browser.title
+    Selenium Test Pages    
+    """
     authType=None
+    delay=0.25
     cfg={}
 
-    giveKudosPattern=re.compile(r'.*ive kudos')    
-    def __init__(self,b,browser='firefox',authFile=f'{os.environ["AUTH"]}/auth.yaml'):
+    def __init__(self,b=None,browser='firefox',authFile=None,delay=None):# 29aug f'{os.environ["AUTH"]}/auth.yaml'
         # create brwoser unless provided
+        """ create instance
+
+        """
         self.browser=Browser(browser) if b==None else b
         nerodia.default_timeout=10
-        with open(authFile) as file:
-            # The FullLoader parameter handles the conversion from YAML
-            # scalar values to Python the dictionary format
-            auth = yaml.safe_load(file)
-            self.auth={x:auth[x] for x in auth if x in ['strava','facebook','linkedin']}
+        
+        if delay: self.delay=delay
+                
+        if authFile:
+          with open(authFile) as file:
+              # The FullLoader parameter handles the conversion from YAML
+              # scalar values to Python the dictionary format
+              auth = yaml.safe_load(file)
+              self.auth={x:auth[x] for x in auth if x in ['strava','facebook','linkedin']}
         
     def login():
       raise NotImplemented
@@ -69,6 +86,9 @@ class SocialMediaSite:
       - Single element than meets the requirements
       """
       return el._xpath_adjacent( tag_name='div',class_name=re.compile(patClass), adjacent='ancestor', plural=False)
+
+    def goto(self,url):
+      return self.browser.goto(url)
     
     @staticmethod
     def getLinkByClassPatt(tag,classPattern): 
@@ -93,9 +113,14 @@ Web=SocialMediaSite
 
 class Strava(SocialMediaSite):
     authType='strava'
+    giveKudosPattern=re.compile(r'.*ive kudos')    
+
     logGSheet=None
-    def __init__(self,b=None,cookieFile=None,authFile=f"{os.environ['AUTH']}/auth.yaml",cfgFile=f'{os.environ["LIB"]}/cfg_strava.yaml'):
-        super().__init__(b,authFile=authFile)
+    def __init__(self,b=None,cookieFile=None,authFile=f"{os.environ['AUTH']}/auth.yaml",
+                                             cfgFile=f'{os.environ["LIB"]}/cfg_strava.yaml',
+                delay=None):
+
+        super().__init__(b,authFile=authFile,delay=delay)
         self.siteType='strava'
         
         with open(cfgFile) as file:
@@ -133,7 +158,7 @@ class Strava(SocialMediaSite):
     def getClubs(self):
         self.browser.goto('https://www.strava.com/clubs/search')
         grps=[]
-        # print(self.browser.ul(class_name="clubs").lis())
+
         for f in self.browser.ul(class_name="clubs").lis():
           # print(f.div().attribute_value("original-title"))
           for c in f.div().links():
@@ -176,6 +201,7 @@ class Strava(SocialMediaSite):
 
         self.browser.button(text='Delete').click()
         self.browser.alert.ok()
+        
     def getPostData(self,actEl):
         ath,athUrl=utils.getAttrsIfExists( actEl.link(data_testid="owners-name"),
                                ['text','href'])#,)
@@ -188,6 +214,7 @@ class Strava(SocialMediaSite):
     def giveKudo(self,kudoTag,i=''):
         try:
             self.browser.execute_script("arguments[0].click();", kudoTag)
+            kudoTag.svg(data_testid="filled_kudos").wait_until(method=lambda x: x.exists)
             
             actEl=kudoTag.parent(class_name=re.compile('^EntryFooter')
                                ).parent()
@@ -201,7 +228,10 @@ class Strava(SocialMediaSite):
                 except Exception as e:
                   athId=f'not valid {e}'
             except Exception as e:
-                logging.warning(f"giveKudos(): Error {e!r}")
+                logging.warning(f"giveKudos(): Data Error {e!r}")
+        except TimeoutError as e:
+          logging.warning(f"giveKudos: {i} error clicking {e!r}")
+          raise TimeoutError('Error 423?:',e)
         except Exception as e: 
           logging.warning(f"giveKudos: {i} error clicking {e!r}")
         else:
@@ -209,37 +239,102 @@ class Strava(SocialMediaSite):
               self.logGSheet.append_table([[pd.Timestamp.now().isoformat(),"INFO","giveKudos",athId,athUrl,ath,actUrl,loc,]]) 
             logging.info(f"giveKudos: {i},{athId},{athUrl} {ath},{actUrl} {act}")
 
-    def giveKudos(self,delay=.25):
+    def giveKudos(self):
       "Give Kudos in current screen new"
       _=self.browser.buttons(title=self.giveKudosPattern)
       count=len(_)
       for i,x in enumerate(_):
         self.giveKudo(x,i)
-        time.sleep(delay)
+        time.sleep(self.delay)
       return {'count':count}
     
     def postComment(self,commentButtonEl,text):
       commentButtonEl.execute_script("arguments[0].click();", commentButtonEl)
       try:
-          footer=commentButtonEl.parent(class_name='EntryFooter--entry-footer--Gy+uP')
-          ta=footer.textarea().wait_until(timeout=.1,method=lambda x:x.exists)
+          footer=commentButtonEl.parent(class_name='EntryFooter--entry-footer--Gy+uP'
+                                       ).wait_until(timeout=1,method=lambda x:x.exists)
+          ta=footer.textarea().wait_until(timeout=1,method=lambda x:x.exists)
           ta.value=text
-          postButton=footer.button(data_testid='post-comment-btn').wait_until(timeout=.1,method=lambda x:x.exists)
+          postButton=footer.button(data_testid='post-comment-btn').wait_until(timeout=1,method=lambda x:x.exists)
           postButton.execute_script("arguments[0].click();", postButton)
-      except: pass
+      except: 
+          raise Exception("Something went wrong while posting comment")
 
-    def goto(self,url):
-      return self.browser.goto(url)
     def image(self):
       self.browser=self.browser
       self.browser.execute_script("window.scrollTo(0,0)")
       return Image(self.browser.screenshot.png())
+    
+    def getReactProps(self,reactTags):
+      "Parses react-feed-component "
+      from pprint import pprint as pp
+      import json
+      _cfg_map=yaml.safe_load("""
+      Skip:
+      - mapAndPhotos
+      - twitterUrl
+      - achievements
+      - segAndBestEffortAchievements
+      - highlighted_kudosers
+      athlete:
+      - All
+      kudosAndComments: 
+      - kudosCount
+      #- comments
+      timeAndLocation:
+      - All
+      test:
+          All:
+          - +All
+          - -FewRemoves
+          -something:
+
+
+      """)
+      # display(cfg)
+      def actFlatten(act):
+          for _cfg in _cfg_map:
+              if _cfg=='Skip':
+                  for key in _cfg_map[_cfg]:
+                      if key in act:
+                          del act[key]
+              if _cfg in act:
+                  for fld in _cfg_map[_cfg]:
+                      if fld=='All':
+                          act.update(act[_cfg])
+                          break
+                      act.update({fld:act[_cfg][fld]})
+                  del act[_cfg]
+          return act
+        
+      if isinstance(reactTags,nerodia.elements.html_elements.HTMLElement):
+        reactTags=[reactTags]
+        
+      for _al in reactTags:
+          _data=json.loads(_al.data_react_props)['preFetchedEntries']
+          # print(len(_data))
+          acts=[]
+          # pp(_data,depth=3)
+          for x in _data:
+              if x['entity']== 'Activity':
+                  acts.append(actFlatten(x['activity']))
+              if x['entity']== 'GroupActivity':
+                  acts = acts + [actFlatten(act) 
+                                 for act in x['rowData']['activities']]
+
+      # for x in acts:
+      #     pp(x,depth=3,indent=2)
+      #     pass
+      return acts
+
 
 class Linkedin(SocialMediaSite):
+    "Linked in website"
+    
     authType='linkedin'
     logGSheet=None
-    def __init__(self,b=None,cookieFile=None,authFile=f"{os.environ['AUTH']}/auth.yaml",cfgFile=None):
-        super().__init__(b,authFile=authFile)
+    def __init__(self,b=None,cookieFile=None,authFile=f"{os.environ['AUTH']}/auth.yaml",cfgFile=None, delay=None):
+        super().__init__(b,authFile=authFile,delay=delay)
         self.siteType='linkedin'
         
         if  cfgFile is not None: #=f'{os.environ["LIB"]}/cfg_strava.yaml'
@@ -278,7 +373,7 @@ class Linkedin(SocialMediaSite):
         self.browser.execute_script("arguments[0].click();", menu)
         if 'artdeco-dropdown--is-open' in menu.class_name:
             self.browser.element(text='Sign Out').click()
-            self.browser.element(text='Sign Out').click()
+            # self.browser.element(text='Sign Out').click()
             logging.info( f"Logged out")
         else:
             logging.info( f"Error: Log out menu did not open")
@@ -341,8 +436,8 @@ class Linkedin(SocialMediaSite):
 class Facebook(SocialMediaSite):
     authType='facebook'
     logGSheet=None
-    def __init__(self,b=None,cookieFile=None,authFile=f"{os.environ['AUTH']}/auth.yaml",cfgFile=None):
-        super().__init__(b,authFile=authFile)
+    def __init__(self,b=None,cookieFile=None,authFile=f"{os.environ['AUTH']}/auth.yaml",cfgFile=None,delay=None):
+        super().__init__(b,authFile=authFile,delay=delay)
         self.siteType='facebook'
         
         if  cfgFile is not None: #=f'{os.environ["LIB"]}/cfg_strava.yaml'
@@ -415,10 +510,9 @@ class Facebook(SocialMediaSite):
             print (evl.split(').')[0]+').exists')
             # post[key]=eval(evl,{"postTag":postTag})
         except (nerodia.exception.UnknownObjectException,Exception) as e:
-            pass
             print(f"Error {e!r} {key} {evl}")
+            pass
       return post    
-
         
     def getPostIds(self):
       "Get list of all feed posts"
