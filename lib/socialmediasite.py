@@ -20,7 +20,11 @@ import utils
 import pandas as pd
 import logging
 import sys
-sys.tracebacklimit = 3
+from IPython.display import HTML, Markdown
+from pprint import pprint as pp
+import json
+import dpath
+sys.tracebacklimit = 1
 
 # import KEYS
 from selenium.webdriver.common.keys import Keys
@@ -48,6 +52,7 @@ class SocialMediaSite:
 
         """
         self.browser=Browser(browser) if b==None else b
+        self.main_window = self.browser.driver.current_window_handle
         nerodia.default_timeout=10
         
         if delay: self.delay=delay
@@ -211,43 +216,94 @@ class Strava(SocialMediaSite):
         kudoCount=utils.getAttrsIfExists( actEl.button(data_testid="kudos_count"))
         return ath,athUrl,loc,act,actUrl,kudoCount
 
+    def giveKudoComment(self,actUrl):
+
+        try:
+          # open new blank tab
+          self.browser.driver.execute_script("window.open();")
+
+          # switch to the new window which is second in window_handles array
+          self.browser.driver.switch_to.window(self.browser.driver.window_handles[1])
+
+
+          # open successfully and close
+          self.browser.goto(actUrl)
+          # consider using dpath
+          actData=json.loads(self.browser.div(data_react_class="ADPKudosAndComments").data_react_props)
+          pp(utils.extractDict(actData,
+                               ['start_xy,avg_speed,avg_heartrate,has_heartrate,'.split(',')]))
+        except Exception as e:
+          logging.warning(f"Error in giveKudoComment(): {e!r}")
+        finally
+          self.browser.driver.close()
+          # back to the main window
+          self.browser.driver.switch_to.window(self.main_window)
+            
+    def giveKudos(self):
+      "Give Kudos in current screen new"
+      _els=self.browser.buttons(title=self.giveKudosPattern)
+      stats={'tot_kudos':len(_els),
+             'kudos':0,
+            }
+      for i,kudoTag in enumerate(_els):
+        if(self.giveKudo(kudoTag,i)):
+          stats['kudos']+= 1
+          try:
+            actEl=kudoTag.parent(class_name=re.compile('^EntryFooter')
+                           ).parent()
+            ath,athUrl,loc,act,actUrl,kudoCount=self.getPostData(actEl)
+            # print(ath,athUrl,act,actUrl,kudoCount,loc)
+            try:
+              athId = int(re.findall(".*\/([0-9]*)",athUrl)[0])
+              if athId not in self.StravaMembers:
+                athId='nonMember'
+            except Exception as e:
+              athId=f'not valid {e}'
+
+            self.printKudos(i,athId,ath,athUrl,loc,act,actUrl,kudoCount)
+            
+            # open actUrl in separate tab if Mulshi
+            if ((loc in [' · Haveli, Maharashtra', ' · Haveli, India',
+                         ' · Mulshi, Maharashtra',' · Mulshi, India'])
+               and (athId=='nonMember')
+               and True   # Was user commenteed earliest
+               ): 
+                          # max number of people 
+                self.giveKudoComment(actUrl)
+          except Exception as e:
+              logging.warning(f"giveKudos(): Data Error {e!r}")
+
+
+
+            
+        time.sleep(self.delay)
+      return stats
+    
     def giveKudo(self,kudoTag,i=''):
         try:
             self.browser.execute_script("arguments[0].click();", kudoTag)
             kudoTag.svg(data_testid="filled_kudos").wait_until(method=lambda x: x.exists)
             
-            actEl=kudoTag.parent(class_name=re.compile('^EntryFooter')
-                               ).parent()
-            try:
-                ath,athUrl,loc,act,actUrl,kudoCount=self.getPostData(actEl)
-                # print(ath,athUrl,act,actUrl,kudoCount,loc)
-                try:
-                  athId = int(re.findall(".*\/([0-9]*)",athUrl)[0])
-                  if athId not in self.StravaMembers:
-                    athId='nonMember'
-                except Exception as e:
-                  athId=f'not valid {e}'
-            except Exception as e:
-                logging.warning(f"giveKudos(): Data Error {e!r}")
         except TimeoutError as e:
           logging.warning(f"giveKudos: {i} error clicking {e!r}")
           raise TimeoutError('Error 423?:',e)
         except Exception as e: 
           logging.warning(f"giveKudos: {i} error clicking {e!r}")
-        else:
-            if not self.logGSheet is None:
-              self.logGSheet.append_table([[pd.Timestamp.now().isoformat(),"INFO","giveKudos",athId,athUrl,ath,actUrl,loc,]]) 
-            logging.info(f"giveKudos: {i},{athId},{athUrl} {ath},{actUrl} {act}")
+          return False
+        return True
 
-    def giveKudos(self):
-      "Give Kudos in current screen new"
-      _=self.browser.buttons(title=self.giveKudosPattern)
-      count=len(_)
-      for i,x in enumerate(_):
-        self.giveKudo(x,i)
-        time.sleep(self.delay)
-      return {'count':count}
-    
+    def printKudos(self,i,athId,ath,athUrl,loc,act,actUrl,kudoCount):
+        if not self.logGSheet is None:
+            self.logGSheet.append_table([[pd.Timestamp.now().isoformat(),"giveKudos",athId,athUrl,ath,actUrl,loc,]]) 
+            # logging.info(f"giveKudos: {i},{athId},{ath},{act} {actUrl}")
+        display(HTML(
+f"""{pd.Timestamp.now().strftime('%y%m%d %H:%M:%S')}/{i}:{athId}/
+<a href="{athUrl}">{ath}</a>
+<a href="{actUrl}">{act}</a>
+<small>{kudoCount}/{loc}</small>
+<br/>"""))
+                                          
+                                          
     def postComment(self,commentButtonEl,text):
       commentButtonEl.execute_script("arguments[0].click();", commentButtonEl)
       try:
@@ -267,8 +323,6 @@ class Strava(SocialMediaSite):
     
     def getReactProps(self,reactTags):
       "Parses react-feed-component "
-      from pprint import pprint as pp
-      import json
       _cfg_map=yaml.safe_load("""
       Skip:
       - mapAndPhotos

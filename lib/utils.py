@@ -9,6 +9,17 @@ import logging
 import subprocess
 #color print
 from IPython.display import Markdown, HTML
+import dpath
+
+
+def extractDict(x,attrs,notFound=None):
+    d={}
+    for x in attrs:
+        try:
+            d[x]=dpath.util.get(x,f"**/{x}")
+        except:
+            d[x]=notFound
+    return d
 
 
 def cstr(s, color='black'):
@@ -40,8 +51,7 @@ def setup_env(packages,modules):
   if os.name!='nt':
       modlist=shell('pip list')
       print(modules)
-      # display({tuple(x.split()):'x' 
-      #        for x in modlist[2:]})
+
       modlist={x.split()[0]:x.split()[1]
                  for x in modlist[2:] if x}
       for m in modules:
@@ -62,18 +72,7 @@ def setup_env(packages,modules):
           shell(f'apt install {pkg} ')
 
   return "Environment setup"
-# if os.name!='nt' and False:
-  #     !pip install nerodia
-  #     !pip install pygsheets
-  #     if True:
-  #       !apt-get update # to update ubuntu to correctly run apt install
-  #       if False:
-  #         !apt install firefox-geckodriver
-  #         !cp /usr/bin/geckodriver {DIR}
-  #         !cp -r /usr/lib/firefox/ {DIR}
-  #       if True:
-  #         !apt install chromium-chromedriver
-  #         !cp /usr/lib/chromium-browser/chromedriver {DIR}
+
   
 
 def setLogger(logFile=None,level=logging.INFO):

@@ -1,3 +1,4 @@
+#environment
 repo:
     https://github.com/avinashmane/colab.git
 packages: 
@@ -5,16 +6,17 @@ packages:
 modules:
 - nerodia
 - pygsheets
+- dpath
 
 env:
-    nt:
+    nt: # for Windows
         LIB: c:/m/lib
         LOG: c:/m/social-media-automation
         AUTH: c:/i/auth
-    posix:
+    posix:  #currently for colab
         LIB: /content/drive/MyDrive/m/lib
         LOG: /content/drive/MyDrive/m/lib
-        AUTH: /content/drive/MyDrive/m/auth
+        AUTH: /content/drive/MyDrive/m/auth  
 sheets:
     stravasync:
         url: https://docs.google.com/spreadsheets/d/1Q8SA641P0aytWzPGmeHG_xuxll3Wq6phsxjb91RjgWY/edit#gid=0
@@ -26,7 +28,7 @@ sheets:
     certs:
         url: https://docs.google.com/spreadsheets/d/1uuw1oavkE7Ahr1h-mmkSaNhR-MUcVRER5KVSyLM7Ot0/edit#gid=1084861083
         tab: RunDayCerts        
-        
+# app specific settings        
 strava:
   avinash:
     clubs:
