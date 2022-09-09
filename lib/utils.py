@@ -9,10 +9,11 @@ import logging
 import subprocess
 #color print
 from IPython.display import Markdown, HTML
-import dpath
+
 
 
 def extractDict(x,attrs,notFound=None):
+    import dpath
     d={}
     for x in attrs:
         try:
