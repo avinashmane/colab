@@ -11,12 +11,16 @@ modules:
 env:
     nt: # for Windows
         LIB: c:/m/lib
-        LOG: c:/m/social-media-automation
+        LOG: c:/m/logging
         AUTH: c:/i/auth
+        CACHE: c:/m/data
+        DATA: c:/m/data
     posix:  #currently for colab
         LIB: /content/drive/MyDrive/m/lib
         LOG: /content/drive/MyDrive/m/lib
         AUTH: /content/drive/MyDrive/m/auth  
+        CACHE: /content/drive/MyDrive/m/data
+        DATA: /content/drive/MyDrive/m/data
 ##################################        
 sheets:
     stravasync:
@@ -46,7 +50,8 @@ strava:
     clubs:
   mileage_league_strava:
     promo:
-      locations: [' · Haveli, Maharashtra', ' · Haveli, India', ' · Mulshi, Maharashtra',' · Mulshi, India']
+      #location are search within the value
+      locations: ['Haveli, Maharashtra', 'Haveli, India', 'Mulshi, Maharashtra','Mulshi, India']  
       startlatlng: [18.75,73.65]
       endlatlng: [18.58,73.87]
       template: >

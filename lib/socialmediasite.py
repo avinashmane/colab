@@ -125,7 +125,7 @@ class SocialMediaSite:
 Web=SocialMediaSite
 
 class Strava(SocialMediaSite):
-  
+
     giveKudosPattern=re.compile(r'.*ive kudos')    
 
     logGSheet=None
@@ -148,8 +148,10 @@ class Strava(SocialMediaSite):
 
     def login(self,login):
         self.user=login
-        auth=self.auth[self.siteType][login]
-        self.loadCookie()
+        auth=self.auth[self.siteType][self.user]
+        
+        super().loadCookie(f"{os.environ['CACHE']}/{self.siteType}_{login}.cookies")
+        
         self.browser.goto('https://www.strava.com/login')
 
         try: # reject cookies
@@ -170,6 +172,7 @@ class Strava(SocialMediaSite):
             logging.warning( f"Error Login2 {e!r}") #logging.warning 
     
     def logout(self):
+      super().saveCookie(f"{os.environ['CACHE']}/{self.siteType}_{self.user}.cookies")
       menu=self.browser.li(class_name="user-menu") #drop-down-menu
       self.browser.execute_script("arguments[0].click();", menu)
       if 'active' in menu.class_name:
@@ -248,13 +251,10 @@ class Strava(SocialMediaSite):
           # consider using dpath
           actData=json.loads(self.browser.div(data_react_class="ADPKudosAndComments").data_react_props)
           pp(utils.extractDict(actData,
-                               ['start_xy,avg_speed,avg_heartrate,has_heartrate,'.split(',')]))
+                               'start_xy,avg_speed,avg_heartrate,has_heartrate,'.split(',')))
           start_xy=utils.extractDict(actData,'start_xy')
           print(promocfg)
-          logging.info( promocfg['startlatlng'],
-                       start_xy,
-                       promocfg['endlatlng'],
-                       promocfg['template'])
+          logging.info( f"{promocfg['startlatlng']},{start_xy},{promocfg['endlatlng']},{promocfg['template']} "  )
           result='Post draft'
         except Exception as e:
           logging.warning(f"Error in giveKudoComment(): {e!r}")
@@ -289,21 +289,21 @@ class Strava(SocialMediaSite):
             
             try:
               # open actUrl in separate tab if Mulshi
-              
+              promoSuccess=''              
               if (('promo' in self.cfg[self.siteType][self.user]) and 
-                  (loc in self.cfg[self.siteType][self.user]['promo']['locations'])
+                  any([_l in loc for _l in self.cfg[self.siteType][self.user]['promo']['locations']])
                    and (athId=='nonMember')
                    and True   # Was user commenteed earliest
                  ): 
                   # chcek max number of people 
-                promo=self.giveKudoComment(actUrl,
+                promoSuccess=self.giveKudoComment(actUrl,
                                            self.cfg[self.siteType][self.user]['promo'])
         
             except:
-              promo=''
+              promoSuccess='e'
               pass
 
-            self.printKudos(i,athId,ath,athUrl,loc,act,actUrl,kudoCount,promo)
+            self.printKudos(i,athId,ath,athUrl,loc,act,actUrl,kudoCount,promoSuccess)
           except Exception as e:
               logging.warning(f"giveKudos(): Data Error {e!r}")
         pass
