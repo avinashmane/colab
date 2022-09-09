@@ -17,6 +17,7 @@ env:
         LIB: /content/drive/MyDrive/m/lib
         LOG: /content/drive/MyDrive/m/lib
         AUTH: /content/drive/MyDrive/m/auth  
+##################################        
 sheets:
     stravasync:
         url: https://docs.google.com/spreadsheets/d/1Q8SA641P0aytWzPGmeHG_xuxll3Wq6phsxjb91RjgWY/edit#gid=0
@@ -27,15 +28,31 @@ sheets:
         tab: StravaPromoLog
     certs:
         url: https://docs.google.com/spreadsheets/d/1uuw1oavkE7Ahr1h-mmkSaNhR-MUcVRER5KVSyLM7Ot0/edit#gid=1084861083
-        tab: RunDayCerts        
+        tab: RunDayCerts  
+###################################3        
 # app specific settings        
-strava:
+strava: 
+  giveKudosHTML: |
+    {dt}/{i}:{athId}/
+    <a href="{athUrl}">{ath}</a>
+    <a href="{actUrl}">{act}</a>
+    <small>{kudoCount}/{loc}/{promo}</small>
+    <br/>
+
   avinash:
     clubs:
-     - https://www.strava.com/clubs/delhirunnersgroup
+     - https://www.strava.com/clubs/delhirunnersgroup     
   strava_pcmcrunners:
     clubs:
   mileage_league_strava:
+    promo:
+      locations: [' · Haveli, Maharashtra', ' · Haveli, India', ' · Mulshi, Maharashtra',' · Mulshi, India']
+      startlatlng: [18.75,73.65]
+      endlatlng: [18.58,73.87]
+      template: >
+        Well done! 
+
+        Do join mileage challenge at https://profile.pcmcrunners.com for FREE certificates of accomplishments, and leaderboards.        
     clubs:
      - https://www.strava.com/clubs/mileageleague
      - https://www.strava.com/clubs/pcmcrunners

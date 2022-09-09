@@ -24,7 +24,7 @@ from IPython.display import HTML, Markdown
 from pprint import pprint as pp
 import json
 import dpath
-sys.tracebacklimit = 1
+# sys.tracebacklimit = 1
 
 # import KEYS
 from selenium.webdriver.common.keys import Keys
@@ -42,21 +42,25 @@ class SocialMediaSite:
     >>> x.browser.title
     Selenium Test Pages    
     """
-    authType=None
-    delay=0.25
+    siteType=None
+    delay=1
     cfg={}
 
-    def __init__(self,b=None,browser='firefox',authFile=None,delay=None):# 29aug f'{os.environ["AUTH"]}/auth.yaml'
+    def __init__(self,b=None,browser='firefox',siteType=None,authFile=None,cfg=None,delay=None):# 29aug f'{os.environ["AUTH"]}/auth.yaml'
         # create brwoser unless provided
         """ create instance
 
         """
+        self.siteType=siteType
         self.browser=Browser(browser) if b==None else b
         self.main_window = self.browser.driver.current_window_handle
         nerodia.default_timeout=10
         
         if delay: self.delay=delay
-                
+
+        if cfg:
+           self.cfg=cfg
+        
         if authFile:
           with open(authFile) as file:
               # The FullLoader parameter handles the conversion from YAML
@@ -64,8 +68,12 @@ class SocialMediaSite:
               auth = yaml.safe_load(file)
               self.auth={x:auth[x] for x in auth if x in ['strava','facebook','linkedin']}
         
-    def login():
+    def login(self):
       raise NotImplemented
+
+    def isLoggedIn(self,check_url):
+      self.browser.goto(check_url)
+      return self.browser.url==check_url
       
     def loadCookie(self,cookieFile):
         if cookieFile and os.path.exists(cookieFile):
@@ -117,23 +125,31 @@ class SocialMediaSite:
 Web=SocialMediaSite
 
 class Strava(SocialMediaSite):
-    authType='strava'
+  
     giveKudosPattern=re.compile(r'.*ive kudos')    
 
     logGSheet=None
-    def __init__(self,b=None,cookieFile=None,authFile=f"{os.environ['AUTH']}/auth.yaml",
-                                             cfgFile=f'{os.environ["LIB"]}/cfg_strava.yaml',
-                delay=None):
-
-        super().__init__(b,authFile=authFile,delay=delay)
-        self.siteType='strava'
+    def __init__(self,b=None,
+                 cookieFile=None,
+                 authFile=f"{os.environ['AUTH']}/auth.yaml",
+                 cfg=None,
+                 cfgFile=f'{os.environ["LIB"]}/cfg_strava.yaml',
+                 delay=None):
+        "Initialize Strava "
+        super().__init__(b,
+                         siteType='strava',
+                         authFile=authFile,
+                         cfg=cfg,
+                         delay=delay)
         
-        with open(cfgFile) as file:
-            cfg = yaml.safe_load(file)
-            self.cfg.update(cfg['strava'])
+        # with open(cfgFile) as file:
+        #     cfg = yaml.safe_load(file)
+        #     self.cfg.update(cfg['strava'])
 
     def login(self,login):
-        auth=self.auth[self.authType][login]
+        self.user=login
+        auth=self.auth[self.siteType][login]
+        self.loadCookie()
         self.browser.goto('https://www.strava.com/login')
 
         try: # reject cookies
@@ -171,15 +187,16 @@ class Strava(SocialMediaSite):
                          "link":c.attributes['href']})
         return (grps)
       
-    def postInClub(self,club,title,text,imagePath):
+    def postInClub(self,club,title,text,imagePath=None):
         self.browser.goto(f'{club}/discussion')
         self.browser.link(id='new-post').click()
         self.browser.textarea(name='title').value=title
         self.browser.textarea(name='text').value=text
-        self.browser.file_field(type='file',index=0).value=imagePath #working
+        if imagePath: self.browser.file_field(type='file',index=0).value=imagePath #working
         self.browser.div(class_name="dropzone-previews").img().wait_until(method=lambda e: e.complete)
         time.sleep(3)
         self.browser.button(text='Publish').click()
+        ## get the post id created
         
     def getPostIds(self,club):
         self.browser.goto(f'{club}/discussion')
@@ -216,15 +233,15 @@ class Strava(SocialMediaSite):
         kudoCount=utils.getAttrsIfExists( actEl.button(data_testid="kudos_count"))
         return ath,athUrl,loc,act,actUrl,kudoCount
 
-    def giveKudoComment(self,actUrl):
+    def giveKudoComment(self,actUrl,promocfg):
+
+        # open new blank tab
+        self.browser.driver.execute_script("window.open();")
+
+        # switch to the new window which is second in window_handles array
+        self.browser.driver.switch_to.window(self.browser.driver.window_handles[1])
 
         try:
-          # open new blank tab
-          self.browser.driver.execute_script("window.open();")
-
-          # switch to the new window which is second in window_handles array
-          self.browser.driver.switch_to.window(self.browser.driver.window_handles[1])
-
 
           # open successfully and close
           self.browser.goto(actUrl)
@@ -232,12 +249,21 @@ class Strava(SocialMediaSite):
           actData=json.loads(self.browser.div(data_react_class="ADPKudosAndComments").data_react_props)
           pp(utils.extractDict(actData,
                                ['start_xy,avg_speed,avg_heartrate,has_heartrate,'.split(',')]))
+          start_xy=utils.extractDict(actData,'start_xy')
+          print(promocfg)
+          logging.info( promocfg['startlatlng'],
+                       start_xy,
+                       promocfg['endlatlng'],
+                       promocfg['template'])
+          result='Post draft'
         except Exception as e:
           logging.warning(f"Error in giveKudoComment(): {e!r}")
-        finally
+          result='-'
+        finally:
           self.browser.driver.close()
           # back to the main window
           self.browser.driver.switch_to.window(self.main_window)
+          return result
             
     def giveKudos(self):
       "Give Kudos in current screen new"
@@ -246,6 +272,7 @@ class Strava(SocialMediaSite):
              'kudos':0,
             }
       for i,kudoTag in enumerate(_els):
+
         if(self.giveKudo(kudoTag,i)):
           stats['kudos']+= 1
           try:
@@ -259,31 +286,35 @@ class Strava(SocialMediaSite):
                 athId='nonMember'
             except Exception as e:
               athId=f'not valid {e}'
-
-            self.printKudos(i,athId,ath,athUrl,loc,act,actUrl,kudoCount)
             
-            # open actUrl in separate tab if Mulshi
-            if ((loc in [' · Haveli, Maharashtra', ' · Haveli, India',
-                         ' · Mulshi, Maharashtra',' · Mulshi, India'])
-               and (athId=='nonMember')
-               and True   # Was user commenteed earliest
-               ): 
-                          # max number of people 
-                self.giveKudoComment(actUrl)
+            try:
+              # open actUrl in separate tab if Mulshi
+              
+              if (('promo' in self.cfg[self.siteType][self.user]) and 
+                  (loc in self.cfg[self.siteType][self.user]['promo']['locations'])
+                   and (athId=='nonMember')
+                   and True   # Was user commenteed earliest
+                 ): 
+                  # chcek max number of people 
+                promo=self.giveKudoComment(actUrl,
+                                           self.cfg[self.siteType][self.user]['promo'])
+        
+            except:
+              promo=''
+              pass
+
+            self.printKudos(i,athId,ath,athUrl,loc,act,actUrl,kudoCount,promo)
           except Exception as e:
               logging.warning(f"giveKudos(): Data Error {e!r}")
-
-
-
-            
+        pass
         time.sleep(self.delay)
       return stats
     
     def giveKudo(self,kudoTag,i=''):
+        
         try:
             self.browser.execute_script("arguments[0].click();", kudoTag)
             kudoTag.svg(data_testid="filled_kudos").wait_until(method=lambda x: x.exists)
-            
         except TimeoutError as e:
           logging.warning(f"giveKudos: {i} error clicking {e!r}")
           raise TimeoutError('Error 423?:',e)
@@ -292,16 +323,14 @@ class Strava(SocialMediaSite):
           return False
         return True
 
-    def printKudos(self,i,athId,ath,athUrl,loc,act,actUrl,kudoCount):
+    def printKudos(self,i,athId,ath,athUrl,loc,act,actUrl,kudoCount,promo):
         if not self.logGSheet is None:
             self.logGSheet.append_table([[pd.Timestamp.now().isoformat(),"giveKudos",athId,athUrl,ath,actUrl,loc,]]) 
             # logging.info(f"giveKudos: {i},{athId},{ath},{act} {actUrl}")
-        display(HTML(
-f"""{pd.Timestamp.now().strftime('%y%m%d %H:%M:%S')}/{i}:{athId}/
-<a href="{athUrl}">{ath}</a>
-<a href="{actUrl}">{act}</a>
-<small>{kudoCount}/{loc}</small>
-<br/>"""))
+        display(HTML(self.cfg[self.siteType]['giveKudosHTML'
+                                            ].format(dt=pd.Timestamp.now().strftime("%y%m%d %H:%M:%S"),
+                                                     i=i,athId=athId,ath=ath,athUrl=athUrl,loc=loc,
+                                              act=act,actUrl=actUrl,kudoCount=kudoCount,promo=promo)))
                                           
                                           
     def postComment(self,commentButtonEl,text):
@@ -384,23 +413,24 @@ f"""{pd.Timestamp.now().strftime('%y%m%d %H:%M:%S')}/{i}:{athId}/
 
 class Linkedin(SocialMediaSite):
     "Linked in website"
-    
-    authType='linkedin'
     logGSheet=None
-    def __init__(self,b=None,cookieFile=None,authFile=f"{os.environ['AUTH']}/auth.yaml",cfgFile=None, delay=None):
-        super().__init__(b,authFile=authFile,delay=delay)
-        self.siteType='linkedin'
+    def __init__(self,b=None,cookieFile=None,authFile=f"{os.environ['AUTH']}/auth.yaml",cfg=None,cfgFile=None, delay=None):
+      
+        super().__init__(b,siteType='linkedin',
+                         authFile=authFile,
+                         cfg=cfg,
+                         delay=delay)
         
-        if  cfgFile is not None: #=f'{os.environ["LIB"]}/cfg_strava.yaml'
-          with open(cfgFile) as file:
-            cfg = yaml.safe_load(file)
-            self.cfg.update(cfg['linkedin'])
+        # if  cfgFile is not None: #=f'{os.environ["LIB"]}/cfg_strava.yaml'
+        #   with open(cfgFile) as file:
+        #     _cfg = yaml.safe_load(file)
+        #     self.cfg.update(_cfg['linkedin'])
 
     def login(self,login):
         if 'username' in login:
           auth=login
         else:
-          auth=self.auth[self.authType][login]
+          auth=self.auth[self.siteType][login]
           
         self.browser.goto('https://www.linkedin.com/login')
 
@@ -488,22 +518,26 @@ class Linkedin(SocialMediaSite):
       return posts
       
 class Facebook(SocialMediaSite):
-    authType='facebook'
+
     logGSheet=None
-    def __init__(self,b=None,cookieFile=None,authFile=f"{os.environ['AUTH']}/auth.yaml",cfgFile=None,delay=None):
-        super().__init__(b,authFile=authFile,delay=delay)
-        self.siteType='facebook'
+    def __init__(self,b=None,cookieFile=None,
+                 authFile=f"{os.environ['AUTH']}/auth.yaml",
+                 cfg=None,
+                 # cfgFile=None,
+                 delay=None):
+      
+        super().__init__(b,siteType='facebook',cfg=cfg,authFile=authFile,delay=delay)
         
-        if  cfgFile is not None: #=f'{os.environ["LIB"]}/cfg_strava.yaml'
-          with open(cfgFile) as file:
-            cfg = yaml.safe_load(file)
-            self.cfg.update(cfg['facebook'])
+        # if  cfgFile is not None: #=f'{os.environ["LIB"]}/cfg_strava.yaml'
+        #   with open(cfgFile) as file:
+        #     _cfg = yaml.safe_load(file)
+        #     self.cfg.update(_cfg['facebook'])
 
     def login(self,login):
         if 'username' in login:
           auth=login
         else:
-          auth=self.auth[self.authType][login]
+          auth=self.auth[self.siteType][login]
           
         self.browser.goto('https://m.facebook.com/login')
 
