@@ -24,6 +24,7 @@ from IPython.display import HTML, Markdown
 from pprint import pprint as pp
 import json
 import dpath
+import traceback
 # sys.tracebacklimit = 1
 
 # import KEYS
@@ -125,7 +126,8 @@ class SocialMediaSite:
 Web=SocialMediaSite
 
 class Strava(SocialMediaSite):
-
+    loginCheckUrl='https://www.strava.com/settings/profile'
+    mainPage='https://www.strava.com/dashboard'
     giveKudosPattern=re.compile(r'.*ive kudos')    
 
     logGSheet=None
@@ -150,27 +152,49 @@ class Strava(SocialMediaSite):
         self.user=login
         auth=self.auth[self.siteType][self.user]
         
-        super().loadCookie(f"{os.environ['CACHE']}/{self.siteType}_{login}.cookies")
-        
-        self.browser.goto('https://www.strava.com/login')
-
-        try: # reject cookies
-          rejButton=self.browser.button(value="Reject")
-          if rejButton.exists:
-            rejButton.click()
-        except Exception as e:
-            logging.warning( f"Error login1 {e!r}") #logging.warning 
-      
         try:
-          self.browser.text_field(id='email').value=auth['username']  #timeout did not work
-          self.browser.text_field(id='password').value=auth['password']
-          self.browser.button(id='login-button').click()
+          super().loadCookie(f"{os.environ['CACHE']}/{self.siteType}_{login}.cookies")
         except Exception as e:
-          if 'dashboard' in self.browser.url:
-            logging.info( f"Logged in with {auth['username']}") #logging.warning 
+          logging.warning(f"lodaCookie Failed: {os.environ['CACHE']}/{self.siteType}_{login}.cookies with {e!r}")
+        if self.user== self.getLoggedStatus():
+          logging.info(f"already logged {self.user}")
+          self.browser.goto(self.mainPage)
+        else:   # full login
+          self.browser.goto('https://www.strava.com/login')
+          try: # reject cookies
+            rejButton=self.browser.button(value="Reject")
+            if rejButton.exists:
+              rejButton.click()
+          except Exception as e:
+              logging.warning( f"Error login1 {e!r}") #logging.warning 
+
+          try:
+            self.browser.text_field(id='email').value=auth['username']  #timeout did not work
+            self.browser.text_field(id='password').value=auth['password']
+            self.browser.button(id='login-button').click()
+          except Exception as e:
+            if 'dashboard' in self.browser.url:
+              logging.info( f"Logged in with {auth['username']}") #logging.warning 
+            else:
+              logging.warning( f"Error Login2 {e!r}") #logging.warning 
+            
+    def getLoggedStatus(self):
+      try:
+        self.browser.goto(self.loginCheckUrl)
+        if (self.browser.url==self.loginCheckUrl):
+          _el=self.browser.div(class_name="label",text="Email")
+          email=_el.following_sibling().text if _el.exists else None
+          authIds=[u for u in self.auth['strava'] if self.auth['strava'][u]['username']==email]
+          if len(authIds): 
+            return authIds[0]
           else:
-            logging.warning( f"Error Login2 {e!r}") #logging.warning 
-    
+            return email
+        else:
+          return False
+      except Exception as e:
+        logging.error(f"getLoggedStatus(): {e!r}")
+          
+      
     def logout(self):
       super().saveCookie(f"{os.environ['CACHE']}/{self.siteType}_{self.user}.cookies")
       menu=self.browser.li(class_name="user-menu") #drop-down-menu
@@ -237,33 +261,48 @@ class Strava(SocialMediaSite):
         return ath,athUrl,loc,act,actUrl,kudoCount
 
     def giveKudoComment(self,actUrl,promocfg):
-
+        result=''
         # open new blank tab
         self.browser.driver.execute_script("window.open();")
-
         # switch to the new window which is second in window_handles array
         self.browser.driver.switch_to.window(self.browser.driver.window_handles[1])
-
+        
         try:
 
           # open successfully and close
           self.browser.goto(actUrl)
           # consider using dpath
           actData=json.loads(self.browser.div(data_react_class="ADPKudosAndComments").data_react_props)
-          pp(utils.extractDict(actData,
-                               'start_xy,avg_speed,avg_heartrate,has_heartrate,'.split(',')))
-          start_xy=utils.extractDict(actData,'start_xy')
-          print(promocfg)
-          logging.info( f"{promocfg['startlatlng']},{start_xy},{promocfg['endlatlng']},{promocfg['template']} "  )
-          result='Post draft'
+          # print("Opening",actData)
+          subset=utils.extractDict(actData,
+                               'start_xy,avg_speed,avg_heartrate,has_heartrate'.split(','))
+          
+          if self.checkLatLng(subset['start_xy'],promocfg):
+            logging.info( f"Posting message {promocfg['startlatlng']},{subset},{promocfg['endlatlng']},{promocfg['template']} "  ) #//post message
+            result='Post draft'
+          else:
+            logging.info( f"Skipping {promocfg['startlatlng']},{subset},{promocfg['endlatlng']},{promocfg['template']} "  )
+            
         except Exception as e:
           logging.warning(f"Error in giveKudoComment(): {e!r}")
+          print(traceback.format_exc())
           result='-'
         finally:
           self.browser.driver.close()
           # back to the main window
           self.browser.driver.switch_to.window(self.main_window)
           return result
+        
+    def checkLatLng(self,start_xy,promocfg):
+      if isinstance(start_xy,str):
+        actlatlng=[float(m.group()) for m in re.finditer('[\d\.]+',start_xy)]
+        for i,x in enumerate(actlatlng):
+          if (x > promocfg['startlatlng'][1-i]) == (x > promocfg['endlatlng'][1-i] ):
+            return False
+        return True
+      else:
+        print (type(start_xy),start_xy)
+        return False
             
     def giveKudos(self):
       "Give Kudos in current screen new"
@@ -273,7 +312,7 @@ class Strava(SocialMediaSite):
             }
       for i,kudoTag in enumerate(_els):
 
-        if(self.giveKudo(kudoTag,i)):
+        if(self.giveKudo(kudoTag,i)): # 
           stats['kudos']+= 1
           try:
             actEl=kudoTag.parent(class_name=re.compile('^EntryFooter')
@@ -281,29 +320,40 @@ class Strava(SocialMediaSite):
             ath,athUrl,loc,act,actUrl,kudoCount=self.getPostData(actEl)
             # print(ath,athUrl,act,actUrl,kudoCount,loc)
             try:
+              athIdCat='nonMember'
               athId = int(re.findall(".*\/([0-9]*)",athUrl)[0])
-              if athId not in self.StravaMembers:
-                athId='nonMember'
+              if athId in self.StravaMembers:
+                athIdCat='Member'
             except Exception as e:
-              athId=f'not valid {e}'
+              athIdCat=f'not valid {e}'
             
             try:
               # open actUrl in separate tab if Mulshi
               promoSuccess=''              
-              if (('promo' in self.cfg[self.siteType][self.user]) and 
-                  any([_l in loc for _l in self.cfg[self.siteType][self.user]['promo']['locations']])
-                   and (athId=='nonMember')
-                   and True   # Was user commenteed earliest
-                 ): 
-                  # chcek max number of people 
+
+              if (loc!=None  # loc has some value
+                 ) and all( [
+                       'promo' in self.cfg[self.siteType][self.user],
+                       athId not in self.promoCommentedIds, # Was user commented earliest
+                       utils.counterCheck('PROMO_COMMENT',5),# check max number of people 
+                       athIdCat=='nonMember',
+                       any([(_l in loc) 
+                         for _l in self.cfg[self.siteType][self.user]['promo']['locations']])]):
+                
+                print("calling...",actUrl)
                 promoSuccess=self.giveKudoComment(actUrl,
                                            self.cfg[self.siteType][self.user]['promo'])
-        
-            except:
+                
+                self.promoCommentedIds.append(athId)
+                self.promoCommentLog.append_table([[pd.Timestamp.now().isoformat(),"promoComments",athIdCat,athUrl,ath,actUrl,loc,]])
+            except Exception as e:
+              exc_type, exc_obj, exc_tb = sys.exc_info()
+              fname = os.path.split(exc_tb.tb_frame.f_code.co_filename)[1]
+              print(f"giveKKKudos: {self.user} {e!r} {fname} {exc_tb.tb_lineno}")
               promoSuccess='e'
               pass
 
-            self.printKudos(i,athId,ath,athUrl,loc,act,actUrl,kudoCount,promoSuccess)
+            self.printKudos(i,athIdCat,ath,athUrl,loc,act,actUrl,kudoCount,promoSuccess)
           except Exception as e:
               logging.warning(f"giveKudos(): Data Error {e!r}")
         pass

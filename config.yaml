@@ -44,6 +44,15 @@ strava:
     <br/>
 
   avinash:
+    promo:
+      #location are search within the value
+      locations: ['Haveli, Maharashtra', 'Haveli, India', 'Mulshi, Maharashtra','Mulshi, India']  
+      startlatlng: [73.65,18.75,]
+      endlatlng: [73.87,18.58,]
+      template: >
+        Well done! 
+
+        Do join mileage challenge at https://profile.pcmcrunners.com for FREE certificates of accomplishments, and leaderboards.        
     clubs:
      - https://www.strava.com/clubs/delhirunnersgroup     
   strava_pcmcrunners:

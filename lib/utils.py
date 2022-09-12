@@ -12,21 +12,56 @@ from IPython.display import Markdown, HTML
 
 
 
-def extractDict(x,attrs,notFound=None):
-    import dpath
+def extractDict(obj,attrs,notFound=None):
+    """
+    Extract list of ttributes at any level
+    """
+    import dpath.util
+    if isinstance(attrs,str): attrs=[attrs]
     d={}
     for x in attrs:
         try:
-            d[x]=dpath.util.get(x,f"**/{x}")
+            d[x]=dpath.util.get(obj,f"**/{x}")
         except:
             d[x]=notFound
     return d
+  
+def counterCheck(counterName,maxCount):
+    """Maintain counter of in env variable
+    >>> for i in range(10): print(i,counterCheck('KUD',5))
+    0 True
+    1 True
+    2 True
+    3 True
+    4 True
+    5 False
+    6 False
+    7 False
+    8 False
+    9 False
+    """
+    if 'COUNTER_' not in counterName: counterName=f'COUNTER_{counterName}'
+    if counterName in os.environ:
+        counter=int(os.environ[counterName])
+        if counter>=maxCount:
+            return False
+        else:
+            # print(counterName)
+            os.environ[counterName] = str(counter + 1)
+            return True
+    else:
+        os.environ[counterName]=str(1)
+        return True
+            
+            
+
+  
 
 
 def cstr(s, color='black'):
     """ Print with color
     
-    >>>cstr("test")
+    >>> cstr("test")    
     '<text style=color:black>test</text>'
     """
     return "<text style=color:{}>{}</text>".format(color, s)
