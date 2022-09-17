@@ -153,9 +153,9 @@ class Strava(SocialMediaSite):
         auth=self.auth[self.siteType][self.user]
         
         try:
-          super().loadCookie(f"{os.environ['CACHE']}/{self.siteType}_{login}.cookies")
+          super().loadCookie(f"{os.environ['CACHE']}/{self.siteType}_{login}.cookies",)
         except Exception as e:
-          logging.warning(f"lodaCookie Failed: {os.environ['CACHE']}/{self.siteType}_{login}.cookies with {e!r}")
+          logging.warning(f"loadCookie Failed: {os.environ['CACHE']}/{self.siteType}_{login}.cookies with {e!r}")
         if self.user== self.getLoggedStatus():
           logging.info(f"already logged {self.user}")
           self.browser.goto(self.mainPage)
@@ -280,6 +280,8 @@ class Strava(SocialMediaSite):
           if self.checkLatLng(subset['start_xy'],promocfg):
             logging.info( f"Posting message {promocfg['startlatlng']},{subset},{promocfg['endlatlng']},{promocfg['template']} "  ) #//post message
             result='Post draft'
+            commentEl=self.browser.button(data_testid="comment_button")
+            self.postComment(commentEl,promocfg['template'])
           else:
             logging.info( f"Skipping {promocfg['startlatlng']},{subset},{promocfg['endlatlng']},{promocfg['template']} "  )
             
@@ -297,12 +299,24 @@ class Strava(SocialMediaSite):
       if isinstance(start_xy,str):
         actlatlng=[float(m.group()) for m in re.finditer('[\d\.]+',start_xy)]
         for i,x in enumerate(actlatlng):
-          if (x > promocfg['startlatlng'][1-i]) == (x > promocfg['endlatlng'][1-i] ):
+          # print (x,'checkiiing in between',promocfg['startlatlng'][i],promocfg['endlatlng'][i] )
+          if (x > promocfg['startlatlng'][i]) == (x > promocfg['endlatlng'][i] ):
             return False
         return True
       else:
         print (type(start_xy),start_xy)
         return False
+      
+    def _getAthIdCat(self,athUrl):
+        try:
+          athIdCat='nonMember'
+          athId = int(re.findall(".*\/([0-9]*)",athUrl)[0])
+          if athId in self.StravaMembers:
+            athIdCat='Member'
+        except Exception as e:
+          athIdCat=f'not valid {e}'
+        return athId,athIdCat
+      
             
     def giveKudos(self):
       "Give Kudos in current screen new"
@@ -318,47 +332,56 @@ class Strava(SocialMediaSite):
             actEl=kudoTag.parent(class_name=re.compile('^EntryFooter')
                            ).parent()
             ath,athUrl,loc,act,actUrl,kudoCount=self.getPostData(actEl)
-            # print(ath,athUrl,act,actUrl,kudoCount,loc)
-            try:
-              athIdCat='nonMember'
-              athId = int(re.findall(".*\/([0-9]*)",athUrl)[0])
-              if athId in self.StravaMembers:
-                athIdCat='Member'
-            except Exception as e:
-              athIdCat=f'not valid {e}'
             
-            try:
-              # open actUrl in separate tab if Mulshi
-              promoSuccess=''              
-
-              if (loc!=None  # loc has some value
-                 ) and all( [
-                       'promo' in self.cfg[self.siteType][self.user],
-                       athId not in self.promoCommentedIds, # Was user commented earliest
-                       utils.counterCheck('PROMO_COMMENT',5),# check max number of people 
-                       athIdCat=='nonMember',
-                       any([(_l in loc) 
-                         for _l in self.cfg[self.siteType][self.user]['promo']['locations']])]):
-                
-                print("calling...",actUrl)
-                promoSuccess=self.giveKudoComment(actUrl,
-                                           self.cfg[self.siteType][self.user]['promo'])
-                
-                self.promoCommentedIds.append(athId)
-                self.promoCommentLog.append_table([[pd.Timestamp.now().isoformat(),"promoComments",athIdCat,athUrl,ath,actUrl,loc,]])
-            except Exception as e:
-              exc_type, exc_obj, exc_tb = sys.exc_info()
-              fname = os.path.split(exc_tb.tb_frame.f_code.co_filename)[1]
-              print(f"giveKKKudos: {self.user} {e!r} {fname} {exc_tb.tb_lineno}")
-              promoSuccess='e'
-              pass
-
+            athId,athIdCat=self._getAthIdCat(athUrl)
+            
+            promoSuccess=self.checkPromoComment(athId,athIdCat,athUrl,ath,actUrl,loc)
+            
             self.printKudos(i,athIdCat,ath,athUrl,loc,act,actUrl,kudoCount,promoSuccess)
           except Exception as e:
               logging.warning(f"giveKudos(): Data Error {e!r}")
         pass
         time.sleep(self.delay)
       return stats
+
+    def checkPromoComment(self,athId,athIdCat,athUrl,ath,actUrl,loc):
+      "Give ready to give comment"
+      
+      
+      try:
+        # open actUrl in separate tab if Mulshi
+
+        if (loc==None  # loc has some value
+           ) or any([(_l not in loc) 
+                   for _l in self.cfg[self.siteType][self.user]['promo']['locations']]):
+          return 'NoLoc'
+        elif athId  in self.promoCommentedIds: # Was user commented earliest
+          return 'prev'
+        elif ~utils.counterCheck('PROMO_COMMENT',10):# check max number of people 
+          return "counter"
+        elif athIdCat!='nonMember':
+          return 'Member'
+        elif 'promo' in self.cfg[self.siteType][self.user]:
+          print("calling...",actUrl)
+          promoSuccess=self.giveKudoComment(actUrl,
+                                     self.cfg[self.siteType][self.user]['promo'])
+
+          self.promoCommentedIds.append(athId)
+          self.promoCommentLog.append_table(
+                  [[pd.Timestamp.now().isoformat(),"promoComments",athIdCat,athUrl,ath,actUrl,loc,]])
+        else:
+          return 'noPromo'
+          # print('athId not in self.promoCommentedIds',athId not in self.promoCommentedIds, # Was user commented earliest
+          #        "utils.counterCheck('PROMO_COMMENT',10)",utils.counterCheck('PROMO_COMMENT',10),
+          #        'athIdCat==nonMember',athIdCat=='nonMember',)
+      except Exception as e:
+        exc_type, exc_obj, exc_tb = sys.exc_info()
+        fname = os.path.split(exc_tb.tb_frame.f_code.co_filename)[1]
+        print(f"giveKKKudos: {self.user} {e!r} {fname} {exc_tb.tb_lineno}")
+        promoSuccess='e'
+        pass
+      return promoSuccess
+    
     
     def giveKudo(self,kudoTag,i=''):
         
