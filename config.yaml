@@ -1,27 +1,29 @@
 #environment
-repo:
+repo:  #only for reference
     https://github.com/avinashmane/colab.git
-packages: 
+packages:   #APT packages
 - chromium-chromedriver
-modules:
+modules:     #Python modules
 - nerodia
 - pygsheets
 - dpath
 
+# key environment variables
 env:
     nt: # for Windows
-        LIB: c:/m/lib
-        LOG: c:/m/logging
-        AUTH: c:/i/auth
-        CACHE: c:/m/data
-        DATA: c:/m/data
+        LIB: c:/m/lib                  #modules, configs
+        LOG: c:/m/logging              #logging
+        AUTH: c:/i/auth                #authorizations file will reside here
+        CACHE: c:/m/data               #Cookies etc
+        DATA: c:/m/data                #data,  temporary
     posix:  #currently for colab
         LIB: /content/drive/MyDrive/m/lib
         LOG: /content/drive/MyDrive/m/lib
         AUTH: /content/drive/MyDrive/m/auth  
         CACHE: /content/drive/MyDrive/m/data
         DATA: /content/drive/MyDrive/m/data
-##################################        
+##################################    
+# using Google sheets as database...Authorized user should have access to it
 sheets:
     stravasync:
         url: https://docs.google.com/spreadsheets/d/1Q8SA641P0aytWzPGmeHG_xuxll3Wq6phsxjb91RjgWY/edit#gid=0
@@ -52,7 +54,7 @@ strava:
       template: >
         Well done! 
 
-        Do join mileage challenge at https://profile.pcmcrunners.com for FREE certificates of accomplishments, and leaderboards.        
+        You are invited to join mileage challenge at https://pcmcrunners.in/to/challenge for FREE certificates of accomplishments, and leaderboards.
     clubs:
      - https://www.strava.com/clubs/delhirunnersgroup     
   strava_pcmcrunners:
@@ -66,7 +68,7 @@ strava:
       template: >
         Well done! 
 
-        Do join mileage challenge at https://profile.pcmcrunners.com for FREE certificates of accomplishments, and leaderboards.        
+        You are invited to join mileage challenge at https://pcmcrunners.in/to/challenge for FREE certificates of accomplishments, and leaderboards.
     clubs:
      - https://www.strava.com/clubs/mileageleague
      - https://www.strava.com/clubs/pcmcrunners

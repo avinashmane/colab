@@ -77,13 +77,21 @@ def shell(cmd):
     out = out.split('\n')
   return out
   
-def setup_env(packages,modules):
+def setup_env(config_file,auth_file='auth.yaml'):
   """Sets up APT packages and Python modules
   
   >>> setup_env([],['pandas'])
   'Environment setup'
   """
   import re,os
+  #read config file
+  with open(config_file if os.name=='nt' 
+            else f"repo/{config_file}","r+") as _c:
+      cfg=yaml.load(_c,yaml.Loader)
+      
+  packages,modules=cfg['packages'],cfg['modules']
+  
+  logging.info('Setting up packages and modules')
   if os.name!='nt':
       modlist=shell('pip list')
       print(modules)
@@ -107,7 +115,19 @@ def setup_env(packages,modules):
           display(f"Installing package {pkg}")
           shell(f'apt install {pkg} ')
 
-  return "Environment setup"
+  logging.info(f"Setting env variables {cfg['env']}")
+  for x in cfg['env'][os.name]: 
+      os.environ[x]=cfg['env'][os.name][x]
+      
+  logging.info(f'loading AUTH file {auth_file} on cfg["AUTH"]')
+  auth_file=auth_file if os.environ['AUTH'] in auth_file else  f"{os.environ['AUTH']}/{auth_file}"
+  with open(auth_file if os.name=='nt' 
+            else f"repo/{AUTH_FILE}","r+") as _c:
+      cfg['AUTH']=yaml.load(_c,yaml.Loader)
+
+
+          
+  return cfg
 
   
 

@@ -6,14 +6,15 @@ import pandas as pd
 
 class Gsheet:
     sheet=None
-    def __init__(self,url,service_account_file=f'{os.environ["AUTH"]}/indiathon-04d51b0b4caa.json'):
-        self.client = pygsheets.authorize(service_account_file=service_account_file)   
-        # print(cfg,url,re.match("^https+://",url))
-        # if re.match("^https+://",url):
-        self.ws=self.client.open_by_url(url)
-        # else:
-        #     self.sheet=cfg['sheets'][url]
-        #     self.ws=self.client.open_by_url(self.sheet['url'])
+    def __init__(self,url,service_account_file):
+        if service_account_file:
+          self.client = pygsheets.authorize(service_account_file=service_account_file)   
+          # print(cfg,url,re.match("^https+://",url))
+          # if re.match("^https+://",url):
+          self.ws=self.client.open_by_url(url)
+          # else:
+          #     self.sheet=cfg['sheets'][url]
+          #     self.ws=self.client.open_by_url(self.sheet['url'])
     def getSheetByTitle(self,sheet):
         return self.ws.worksheet_by_title(sheet)
     def getSheetDf(self,sheet, start=None,end=None):

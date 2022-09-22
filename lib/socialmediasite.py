@@ -153,6 +153,7 @@ class Strava(SocialMediaSite):
         auth=self.auth[self.siteType][self.user]
         
         try:
+          self.browser.goto('https://www.strava.com/login')
           super().loadCookie(f"{os.environ['CACHE']}/{self.siteType}_{login}.cookies",)
         except Exception as e:
           logging.warning(f"loadCookie Failed: {os.environ['CACHE']}/{self.siteType}_{login}.cookies with {e!r}")
@@ -160,7 +161,6 @@ class Strava(SocialMediaSite):
           logging.info(f"already logged {self.user}")
           self.browser.goto(self.mainPage)
         else:   # full login
-          self.browser.goto('https://www.strava.com/login')
           try: # reject cookies
             rejButton=self.browser.button(value="Reject")
             if rejButton.exists:
@@ -261,7 +261,7 @@ class Strava(SocialMediaSite):
         return ath,athUrl,loc,act,actUrl,kudoCount
 
     def giveKudoComment(self,actUrl,promocfg):
-        result=''
+        result='?'
         # open new blank tab
         self.browser.driver.execute_script("window.open();")
         # switch to the new window which is second in window_handles array
@@ -280,20 +280,22 @@ class Strava(SocialMediaSite):
           if self.checkLatLng(subset['start_xy'],promocfg):
             logging.info( f"Posting message {promocfg['startlatlng']},{subset},{promocfg['endlatlng']},{promocfg['template']} "  ) #//post message
             result='Post draft'
-            commentEl=self.browser.button(data_testid="comment_button")
+            commentEl=self.browser.button(data_testid=re.compile("comment_button|open_comment_modal_button")).wait_until(method=lambda x:x.exists)
             self.postComment(commentEl,promocfg['template'])
           else:
-            logging.info( f"Skipping {promocfg['startlatlng']},{subset},{promocfg['endlatlng']},{promocfg['template']} "  )
+            
+            logging.info( f"Skipping {promocfg['startlatlng']},{subset['start_xy']},{promocfg['endlatlng']}"  )
             
         except Exception as e:
           logging.warning(f"Error in giveKudoComment(): {e!r}")
           print(traceback.format_exc())
-          result='-'
+          result='Error'+str(e)
         finally:
           self.browser.driver.close()
           # back to the main window
           self.browser.driver.switch_to.window(self.main_window)
-          return result
+          
+        return result
         
     def checkLatLng(self,start_xy,promocfg):
       if isinstance(start_xy,str):
@@ -352,15 +354,15 @@ class Strava(SocialMediaSite):
         # open actUrl in separate tab if Mulshi
 
         if (loc==None  # loc has some value
-           ) or any([(_l not in loc) 
+           ) or all([(_l not in loc) 
                    for _l in self.cfg[self.siteType][self.user]['promo']['locations']]):
           return 'NoLoc'
         elif athId  in self.promoCommentedIds: # Was user commented earliest
           return 'prev'
-        elif ~utils.counterCheck('PROMO_COMMENT',10):# check max number of people 
-          return "counter"
         elif athIdCat!='nonMember':
           return 'Member'
+        elif not utils.counterCheck('PROMO_COMMENT',40):# check max number of people 
+          return "counter_"+os.environ['COUNTER_PROMO_COMMENT']
         elif 'promo' in self.cfg[self.siteType][self.user]:
           print("calling...",actUrl)
           promoSuccess=self.giveKudoComment(actUrl,
