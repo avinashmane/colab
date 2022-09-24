@@ -77,8 +77,10 @@ def shell(cmd):
     out = out.split('\n')
   return out
   
-def setup_env(config_file,auth_file='auth.yaml'):
+def setup_env(config_file,auth_file='auth.yaml',auth_domains=[]):
   """Sets up APT packages and Python modules
+  - config file : application level config
+  - authorization : with higher level of pro
   
   >>> setup_env([],['pandas'])
   'Environment setup'
@@ -121,11 +123,8 @@ def setup_env(config_file,auth_file='auth.yaml'):
       
   logging.info(f'loading AUTH file {auth_file} on cfg["AUTH"]')
   auth_file=auth_file if os.environ['AUTH'] in auth_file else  f"{os.environ['AUTH']}/{auth_file}"
-  with open(auth_file if os.name=='nt' 
-            else f"repo/{AUTH_FILE}","r+") as _c:
+  with open(auth_file,"r+") as _c:
       cfg['AUTH']=yaml.load(_c,yaml.Loader)
-
-
           
   return cfg
 
