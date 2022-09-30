@@ -278,10 +278,12 @@ class Strava(SocialMediaSite):
                                'start_xy,avg_speed,avg_heartrate,has_heartrate'.split(','))
           
           if self.checkLatLng(subset['start_xy'],promocfg):
+            
             logging.info( f"Posting message {promocfg['startlatlng']},{subset},{promocfg['endlatlng']},{promocfg['template']} "  ) #//post message
             result='Post draft'
             commentEl=self.browser.button(data_testid=re.compile("comment_button|open_comment_modal_button")).wait_until(method=lambda x:x.exists)
             self.postComment(commentEl,promocfg['template'])
+            
           else:
             
             logging.info( f"Skipping {promocfg['startlatlng']},{subset['start_xy']},{promocfg['endlatlng']}"  )
@@ -322,6 +324,7 @@ class Strava(SocialMediaSite):
             
     def giveKudos(self):
       "Give Kudos in current screen new"
+      
       _els=self.browser.buttons(title=self.giveKudosPattern)
       stats={'tot_kudos':len(_els),
              'kudos':0,
@@ -340,6 +343,11 @@ class Strava(SocialMediaSite):
             promoSuccess=self.checkPromoComment(athId,athIdCat,athUrl,ath,actUrl,loc)
             
             self.printKudos(i,athIdCat,ath,athUrl,loc,act,actUrl,kudoCount,promoSuccess)
+            
+            #update stats
+            if promoSuccess in stats: stats[promoSuccess] += 1
+            else: stats[promoSuccess] = 1
+            
           except Exception as e:
               logging.warning(f"giveKudos(): Data Error {e!r}")
         pass
@@ -379,7 +387,7 @@ class Strava(SocialMediaSite):
       except Exception as e:
         exc_type, exc_obj, exc_tb = sys.exc_info()
         fname = os.path.split(exc_tb.tb_frame.f_code.co_filename)[1]
-        print(f"giveKKKudos: {self.user} {e!r} {fname} {exc_tb.tb_lineno}")
+        print(f"checkPromoComment(): {self.user} {e!r} {fname} {exc_tb.tb_lineno}")
         promoSuccess='e'
         pass
       return promoSuccess

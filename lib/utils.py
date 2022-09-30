@@ -80,7 +80,7 @@ def shell(cmd):
 def setup_env(config_file,auth_file='auth.yaml',auth_domains=[]):
   """Sets up APT packages and Python modules
   - config file : application level config
-  - authorization : with higher level of pro
+  - authorization : with higher level of protections
   
   >>> setup_env([],['pandas'])
   'Environment setup'
