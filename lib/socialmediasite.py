@@ -277,16 +277,17 @@ class Strava(SocialMediaSite):
           subset=utils.extractDict(actData,
                                'start_xy,avg_speed,avg_heartrate,has_heartrate'.split(','))
           
-          if self.checkLatLng(subset['start_xy'],promocfg):
+          if self.checkXY(subset['start_xy'],promocfg):
             
-            logging.info( f"Posting message {promocfg['startlatlng']},{subset},{promocfg['endlatlng']},{promocfg['template']} "  ) #//post message
+            logging.info( f"Posting message {subset}: {promocfg['template']} "  ) #//post message
             result='Post draft'
-            commentEl=self.browser.button(data_testid=re.compile("comment_button|open_comment_modal_button")).wait_until(method=lambda x:x.exists)
-            self.postComment(commentEl,promocfg['template'])
+            commentEl=self.browser.button(data_testid=re.compile("comment")).wait_until(method=lambda x:x.exists)
             
+            self.postCommentAct(commentEl,promocfg['template'])  # created separate copy of 
+      
           else:
             
-            logging.info( f"Skipping {promocfg['startlatlng']},{subset['start_xy']},{promocfg['endlatlng']}"  )
+            logging.info( f"Skipping {promocfg['startxy']},{subset['start_xy']},{promocfg['endxy']}"  )
             
         except Exception as e:
           logging.warning(f"Error in giveKudoComment(): {e!r}")
@@ -299,12 +300,12 @@ class Strava(SocialMediaSite):
           
         return result
         
-    def checkLatLng(self,start_xy,promocfg):
+    def checkXY(self,start_xy,promocfg):
       if isinstance(start_xy,str):
-        actlatlng=[float(m.group()) for m in re.finditer('[\d\.]+',start_xy)]
-        for i,x in enumerate(actlatlng):
-          # print (x,'checkiiing in between',promocfg['startlatlng'][i],promocfg['endlatlng'][i] )
-          if (x > promocfg['startlatlng'][i]) == (x > promocfg['endlatlng'][i] ):
+        actxy=[float(m.group()) for m in re.finditer('[\d\.]+',start_xy)]
+        for i,x in enumerate(actxy):
+          # print (x,'checkiiing in between',promocfg['startxy'][i],promocfg['endxy'][i] )
+          if (x > promocfg['startxy'][i]) == (x > promocfg['endxy'][i] ):
             return False
         return True
       else:
@@ -428,6 +429,15 @@ class Strava(SocialMediaSite):
       except: 
           raise Exception("Something went wrong while posting comment")
 
+    def postCommentAct(self,commentEl,text):
+      #following code is to post comment at activity
+      commentEl=self.browser.button(data_testid=re.compile("comment")).wait_until(method=lambda x:x.exists)
+      commentEl.execute_script("arguments[0].click();", commentEl)
+      # self.postComment(commentEl,promocfg['template'])
+      self.browser.div(data_testid='comments-form').textarea().value=text
+      cmtBtn=self.browser.button(data_testid='post-comment-btn')
+      cmtBtn.click()  
+      
     def image(self):
       self.browser=self.browser
       self.browser.execute_script("window.scrollTo(0,0)")

@@ -49,8 +49,8 @@ strava:
     promo:
       #location are search within the value
       locations: ['Haveli, Maharashtra', 'Haveli, India', 'Mulshi, Maharashtra','Mulshi, India']  
-      startlatlng: [73.65,18.75,]
-      endlatlng: [73.87,18.58,]
+      startxy: [73.65,18.75,]
+      endxy: [73.87,18.58,]
       template: >
         Well done! 
 
@@ -58,17 +58,26 @@ strava:
     clubs:
      - https://www.strava.com/clubs/delhirunnersgroup     
   strava_pcmcrunners:
-    clubs:
-  mileage_league_strava:
     promo:
+  mileage_league_strava:
+    promo_2:
       #location are search within the value
       locations: ['Haveli, Maharashtra', 'Haveli, India', 'Mulshi, Maharashtra','Mulshi, India']  
-      startlatlng: [18.75,73.65]
-      endlatlng: [18.58,73.87]
+      startxy: [18.75,73.65]
+      endxy: [18.58,73.87]
       template: >
         Well done! 
 
         You are invited to join mileage challenge at https://pcmcrunners.in/to/challenge for FREE certificates of accomplishments, and leaderboards.
+    promo:
+      #location are search within the value
+      locations: ['Pune, Maharashtra', 'Pune, India', 'Pune City, Maharashtra','Pune City, India','Haveli, Maharashtra', 'Haveli, India', 'Mulshi, Maharashtra','Mulshi, India']  
+      startxy: [73.6,18.8,]
+      endxy: [74,18.4,]
+      template: >
+        Well done! 
+
+        Consistency wins over speed for athletes with long-term fitness goal.  You are cordially invited to join club https://www.strava.com/clubs/punemileageleague for additional motivation and leaderboards of like-minded athletes.
     clubs:
      - https://www.strava.com/clubs/mileageleague
      - https://www.strava.com/clubs/pcmcrunners
@@ -107,3 +116,11 @@ other:
      - https://www.strava.com/clubs/202omilesin2020
      - https://www.strava.com/clubs/delhirunnersgroup
 listClubs:
+
+shopping:
+  amazon.in:
+    site: https:/www.amazon.in
+  amazon.com:
+    site: https:/www.amazon.in
+  flipkart:
+    site: https:/www.flipkart.com
